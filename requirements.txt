@@ -1,0 +1,16 @@
+pyyaml>=6.0
+requests>=2.31
+feedparser>=6.0
+trafilatura>=1.12
+Pillow>=10.3
+numpy>=1.26
+rembg>=2.0.57
+onnxruntime>=1.17
+anthropic>=0.40
+edge-tts>=7.0
+google-api-python-client>=2.130
+google-auth-oauthlib>=1.2
+google-auth>=2.29
+# piper-tts>=1.2   # valinnainen offline-ääni (tts.engine: piper)
+yt-dlp>=2025.10
+curl_cffi>=0.10   # yt-dlp --impersonate (tekstityshaku ilman HTTP 429 -rajoitusta)

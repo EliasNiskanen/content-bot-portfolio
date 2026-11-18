@@ -1,0 +1,31 @@
+# Taustalle (käynnistyy uudelleen itse, myös Docker Desktopin käynnistyessä):  docker compose up -d --build
+# Lokit: docker compose logs -f   (tiedostoina: data/logs/bot-YYYY-MM-DD.log)
+# Kertaluonteiset: docker compose run --rm gta6-bot run --mock | schedule --dry-run | cleanup --dry-run
+# Tila: docker compose exec gta6-bot python -m bot.main status
+services:
+  gta6-bot:
+    build: .
+    image: gta6-bot:latest
+    container_name: gta6-bot
+    restart: unless-stopped
+    init: true   # tini PID 1:ksi: tapettujen ajojen ffmpeg-lapset korjataan pois (ei zombeja)
+    env_file: .env
+    environment:
+      - TZ=Europe/Helsinki
+    volumes:
+      - ./data:/data
+      - ./config.yaml:/app/config.yaml:ro
+      # Jaa klippibotin output-kansio suoraan tänne:
+      # - /home/pi/clipbot/output:/data/clips:ro
+    command: ["schedule"]
+    healthcheck:  # scheduler koskettaa data/logs/heartbeat minuutin välein; terve jos alle 5 min vanha
+      test: ["CMD", "python", "-c", "import os,sys,time; p='/data/logs/heartbeat'; sys.exit(0 if os.path.exists(p) and time.time() - os.path.getmtime(p) < 300 else 1)"]
+      interval: 1m
+      timeout: 10s
+      start_period: 2m
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

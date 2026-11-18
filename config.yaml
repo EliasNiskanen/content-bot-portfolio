@@ -1,0 +1,253 @@
+# GTA 6 -videobotin asetukset.
+# ${DATA_DIR} = /data Dockerissa, ./data jos ajat suoraan Raspberry Pillä (asetetaan automaattisesti).
+
+channel:
+  own_channel_id: "UCy8D0saM1AC0NGv6QOPdX3A"          # oma kanavasi ID, ettei botti "trendaa" omia videoitasi
+  credit_inspiration: false   # omistaja 18.11.2026: ei mainita kuvauksessa mikä video inspiroi aihetta
+  rules:                      # kanavan säännöt, jotka annetaan käsikirjoittajalle joka kerta
+    - "Channel: Catfish Gaming. Gaming news and analysis, currently focused on GTA 6; other games later."
+    - "Audience: adult gamers, mostly 18-40, who want the facts without the hype."
+    - "Every long video is at least 12 minutes of real content. Never pad."
+    - "Family-friendly: no swearing, no graphic detail, nothing that limits ads."
+    - "Always separate confirmed facts, rumors, leaks and opinion, and name the source of every claim."
+    - "Never invent leaks, dates, prices or quotes. Never copy another creator."
+
+format: long                  # long = uutisvideo 16:9 (n. 12 min) | guide = vinkki-/opasvideo yhdestä aiheesta (run --format guide)
+
+schedule:                     # python -m bot.main schedule (Docker: docker compose up -d); --dry-run näyttää ajat
+  timezone: "Europe/Helsinki"
+  jobs:                       # ajetaan peräkkäin (render 30-45 min); jos edellinen on kesken, seuraava alkaa heti perään
+    - {name: news, time: "04:30", format: long, publish_at: "08:00"}    # uutisvideo, julkaisu 08:00 (US-yö -> aamu)
+    - {name: guide, time: "06:30", format: guide, publish_at: "10:00"}  # opasvideo seuraavasta guide.topics-aiheesta
+  once:                       # kertaluonteiset työt: ajetaan kuten muut (lapsiprosessi, aikaraja, uusinta, laatuportti)
+    # GTA 6:n julkaisupäivä: Uusi-Seelanti avautuu 11:00 UTC (13:00 Helsinki) -> vinkkivideo ensimmäisten pelaajien
+    # löydöistä. privacy: public koskee vain tätä työtä (upload.privacy muille)
+    - {name: launchday, date: "2026-11-18", time: "15:00", format: guide,
+       topic: "GTA 6 First Things To Do - tips from the first hours of play", research: launch_streams,
+       privacy: public, research_retry_at: ["15:30", "16:00"]}
+  skip:                       # säännöllinen työ ohitetaan näinä päivinä (kanavan latausrajalle tilaa)
+    - {name: guide, date: "2026-11-18"}
+  retry_minutes: 20           # epäonnistunut ajo yritetään uudelleen 20 min ja sitten 40 min päästä
+  retry_count: 2              # uusintoja per työ (laatuportin hylkäys, latausvirhe...)
+  job_timeout_minutes: 150    # kova aikaraja per työ (lapsiprosessi): ylitys -> prosessipuu tapetaan, hälytys, uusinta
+  # vanha muoto: ilman jobs-listaa "time: '09:00'" = yksi uutisajo (valinnainen publish_at: "HH:MM")
+
+trending:
+  queries: ["GTA 6", "GTA VI", "Grand Theft Auto VI", "GTA 6 gameplay", "GTA 6 news", "GTA 6 leak", "GTA 6 vs GTA 5"]
+  lookback_hours: 48
+  max_results_per_query: 25
+  region_code: US
+  relevance_language: en
+  must_contain_any: ["gta", "grand theft auto"]
+  title_must_contain_any: ["gta 6", "gta vi", "gta6", "grand theft auto vi", "grand theft auto 6"]
+  exclude_channel_ids: []
+  min_views: 5000
+  min_duration_s: 180         # Shortsit ja lyhyet klipit pois trendiaiheista
+
+news:
+  lookback_days: 3
+  max_articles: 10            # 12 min video tarvitsee enemmän lähdemateriaalia
+  keywords: ["gta 6", "gta vi", "gta6", "grand theft auto vi", "grand theft auto 6", "rockstar games"]
+  feeds:
+    - "https://news.google.com/rss/search?q=%22GTA+6%22+OR+%22GTA+VI%22+when:3d&hl=en-US&gl=US&ceid=US:en"
+    - "https://www.gamespot.com/feeds/news/"
+    - "https://www.eurogamer.net/feed"
+    - "https://www.pcgamer.com/rss/"
+    - "https://feeds.feedburner.com/ign/all"
+    - "https://www.videogameschronicle.com/feed/"
+    - "https://insider-gaming.com/feed/"
+    - "https://www.gamesradar.com/rss/"
+    - "https://www.pushsquare.com/feeds/latest"
+    - "https://www.purexbox.com/feeds/latest"
+  show_article_images: false  # artikkelien kansikuvat ovat julkaisijan omaisuutta -> oletuksena pois
+
+research:                     # aihesignaalit ennen käsikirjoitusta (eivät faktalähteitä), kaikki valinnaisia
+  enabled: true
+  youtube_top: 8              # trendivideoista kehotteeseen (otsikko, kanava, katselut, outlier)
+  reddit_subs: ["GTA6", "GTA", "rockstar"]   # hot + top (päivä), vain news.keywords-osumat
+  reddit_on_topic_subs: ["GTA6"]             # näissä koko subi on aiheesta -> kaikki postaukset kelpaavat
+  reddit_top: 15              # "community buzz" -otsikot pisteineen
+  reddit_search_sub: "GTA6"   # opasvideon aihehaku
+  topic_lookback_days: 30     # opasvideon YouTube-, Google News- ja syötehaku
+  topic_min_views: 2000
+  launch:                     # research: launch_streams (schedule.once launchday): ensimmäisten pelaajien videot
+    after: "2026-11-18T11:00:00Z"   # search.list publishedAfter (NZ-julkaisu)
+    top: 10                   # katsotuimmat (yksi per tekijä), tekstitykset yt-dlp:llä
+    max_words_per_creator: 2500
+    queries: ["GTA 6 gameplay", "GTA 6 first hour", "GTA 6 tips", "GTA 6 things to do first", "GTA 6 New Zealand",
+              "GTA 6 live"]
+
+guide:                        # vinkki-/opasvideo: run --format guide [--topic "..."]; ilman --topicia seuraava käyttämätön
+  topics:                     # järjestyksessä, käytetyt tallentuvat state.db:hen, alusta kun kaikki käytetty
+    - {topic: "The GTA 6 map and its six regions", keywords: [map, region, leonida, vice city, port gellhorn, ambrosia, grassrivers, mount kalaga, keys]}
+    - {topic: "The GTA 6 police and wanted system vs GTA 5", keywords: [police, cops, wanted, crime, arrest, law enforcement], hashtag: GTA6vsGTA5}
+    - {topic: "GTA 6 driving physics and cars", keywords: [driving, car, cars, vehicle, vehicles, physics, gas, fuel]}
+    - {topic: "GTA 6 weapons and combat", keywords: [weapon, weapons, gun, guns, combat, shooting, cover]}
+    - {topic: "GTA 6 animals and wildlife", keywords: [animal, animals, wildlife, alligator, gator, dog, fishing, hunting]}
+    - {topic: "Interactivity in the GTA 6 world", keywords: [interact, interactive, interactivity, world, detail, shops, activities]}
+    - {topic: "GTA 6 NPC individuality", keywords: [npc, npcs, pedestrian, pedestrians, crowd, ai, reaction]}
+    - {topic: "Money and robberies in GTA 6", keywords: [money, robbery, robberies, heist, heists, cash, bank, economy]}
+    - {topic: "Jason and Lucia and character switching in GTA 6", keywords: [jason, lucia, switch, switching, protagonist, protagonists, story]}
+    - {topic: "What is NOT in GTA 6 at launch", keywords: [missing, launch, cut, not included, online, pc, delay]}
+    - {topic: "GTA 6 vs GTA 5 graphics and details", keywords: [graphics, visual, visuals, detail, details, lighting, comparison, gta 5], hashtag: GTA6vsGTA5}
+    - {topic: "Things to do first on day one in GTA 6", keywords: [day one, first, tips, beginner, start, launch, preload]}
+script:
+  model: claude-sonnet-5-5
+  target_minutes_long: 12     # vähintään 12 min: 8+ min sallii mid-roll-mainokset, ja katseluaika kertyy nopeammin
+  target_words_long: 2400     # n. 3 sanaa/s tällä äänellä -> ~13 min puhetta
+  min_words_long: 2200        # tätä lyhyempi käsikirjoitus pyydetään uudelleen (≈ 12 min)
+  api_timeout_s: 900          # Claude-kutsun aikaraja (15 min); SDK:n omat uusinnat api_max_retries
+  api_max_retries: 3
+  target_words_short: 140
+  slang_level: adult          # adult (n. 30-v. pelaaja, ei teinislangia) | low | medium | high. Kiroilu on aina estetty
+
+tts:
+  engine: edge                # edge (ilmainen) | elevenlabs (paras laatu) | piper (offline) | mock
+  edge_voice: en-US-AndrewMultilingualNeural
+  edge_rate: "+6%"
+  edge_pitch: "+0Hz"
+  elevenlabs_voice_id: ""
+  elevenlabs_model: eleven_multilingual_v2
+  piper_model: "${DATA_DIR}/piper/en_US-ryan-high.onnx"
+  segment_pause_ms: 220
+  edge_timeout_s: 60          # yksi edge-tts-yritys enintään (10 yritystä per segmentti)
+  stage_timeout_minutes: 60   # koko TTS-vaihe enintään (vahtikoira)
+
+video:
+  fps: 30
+  codec: libx264              # Pi 4: h264_v4l2m2m (rauta-enkooderi). Pi 5: libx264
+  preset: veryfast
+  crf: 21
+  motion: true                # taustavideoon hidas zoom sisään/ulos (motion_zoom 0.06)
+  vignette: 0.55              # taustan vinjetti (radiaani, 0 = pois)
+  caption_words: 3            # tekstitys enintään 3 sanaa kerrallaan
+  topic_bar: true             # yläreunan aihekaista (nykyinen aihe korostettuna, muut himmeinä); ei Shortseissa
+  clip_min_s: 4
+  clip_max_s: 8
+  background_dim: 0.10
+  stills_ratio: 0.35          # osuus taustan paloista, jotka ovat virallisia still-kuvia hitaalla zoomilla
+  music_volume: 0.07          # vain varalla, jos taustamaton äänekkyyttä ei saada mitattua
+  music_file: ""              # taustamatto; tyhjä = ensimmäinen äänitiedosto paths.music_dir-kansiossa
+  music_loop: [20.0, 224.0]   # kappaleen tasainen osa (Pulsar: häivytys sisään 0-20 s, ulos 224 s jälkeen)
+  music_lufs: -30             # taustamaton integroitu äänekkyys lopullisessa miksauksessa (puhe n. -21 LUFS)
+  font: /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+  subtitle_font_name: "DejaVu Sans"
+  subtitles: true
+
+paths:
+  clip_dirs: ["${DATA_DIR}/clips", "${DATA_DIR}/gta6_footage"]
+  still_dirs: ["${DATA_DIR}/official_images/screenshots"]   # Rockstarin viralliset kuvakaappaukset
+  # paljastavat / seksuaaliset kuvat pois taustoista ja thumbnaileista (mainosystävällisyys), tiedoston nimi ilman päätettä
+  exclude_images: [Boobie_Ike_04, DreQuan_Priest_01, Jason_and_Lucia_10, Jason_and_Lucia_14, Jason_and_Lucia_20,
+                   Lucia_Caminos_06, Real_Dimez_01, Port_Gellhorn_04, Port_Gellhorn_05, Port_Gellhorn_07, Vice_City_02,
+                   Vice_City_05, Vice_City_06, Vice_City_07, Vice_City_18, Vice_City_23, Vice_City_25,
+                   Boobie_Ike__plate, DreQuan_Priest__plate, Real_Dimez__rockstar]
+  music_dir: "${DATA_DIR}/music"
+  output_dir: "${DATA_DIR}/output"
+  work_dir: "${DATA_DIR}/work"
+  db: "${DATA_DIR}/state.db"
+  secrets_dir: "${DATA_DIR}/secrets"
+  logs_dir: "${DATA_DIR}/logs"  # bot-YYYY-MM-DD.log (jokainen ajo lisää) + heartbeat (Dockerin healthcheck)
+
+cleanup:                      # onnistuneen ajon jälkeen (ei --mock) ja pyynnöstä: python -m bot.main cleanup [--dry-run]
+  keep_work: 10               # uusimmat työkansiot data/work/YYYYMMDD-HHMM_* (niistä isot välitiedostot pois aina)
+  keep_output_days: 14        # data/output-tiedostot (video, Shortsit, thumbnailit, json)
+  keep_logs_days: 30          # data/logs/bot-*.log
+
+qa:                           # laatuportti ennen jokaista latausta (hylkäys = ei latausta, hälytys); ks. OHJE.md 9
+  min_minutes: 11.5           # pitkä video vähintään (ei --mock-ajoissa), enintään max_minutes
+  max_minutes: 40
+  short_min_s: 10             # Shorts 10-60 s, 1080x1920
+  short_max_s: 60
+  mean_db_min: -35            # äänen keskitaso (volumedetect): alle = hiljainen, yli -10 = liian kova
+  mean_db_max: -10
+  max_db: 0                   # huippu yli 0 dB = leikkaantuu
+  black_max_s: 3              # mustaa yhteensä alle tämän (ei 4 ensimmäistä eikä 20 viimeistä sekuntia)
+  freeze_max_s: 8             # pysähtynyt kuva enintään (intro ja loppuruutu pois laskuista)
+  title_prefix: "GTA 6"       # GTA-videoiden otsikon alku
+  min_minutes_breakdown: 8    # breakdown-video (Rockstarin uusi video) vähintään
+  min_free_gb: 8              # esitarkistus: vapaata levytilaa data-kansiossa (alle -> siivous, sitten hälytys)
+
+breakdown:                    # Rockstarin uusi virallinen GTA VI -video -> breakdown-video heti (bot/breakdown.py)
+  enabled: true
+  watch_from: "2026-11-18T00:00:00+02:00"   # tätä uudemmat Rockstarin lataukset (uploads-soittolista, ei search.list)
+  interval_minutes: 20        # vahdin tarkistusväli ajastimessa (3 kiintiöyksikköä per tarkistus)
+  max_per_day: 1
+  privacy: public             # kuten launchday (omistajan valinta); laatuportti pätee
+  frames: 24                  # avainkuvat tasaisesti (+ kohtauksenvaihdot, yhteensä enintään 32) käsikirjoittajalle
+
+thumbnail:
+  variants: 3                 # 3 = YouTuben Test & Compare -maksimi
+  candidate_frames: 40        # montako ruutua pisteytetään pelikuvasta
+  cutout: true                # hahmon/auton irrotus taustasta (rembg)
+  cutout_model: isnet-general-use   # kevyempi Pi 4:lle: u2netp
+  font: "${APP_DIR}/assets/fonts/Anton-Regular.ttf"
+  backgrounds_dir: "${DATA_DIR}/official_images"   # viralliset pelikuvat, kansion nimi = kategoria
+  poses_dir: "${APP_DIR}/assets/brand/poses"        # maskotin eleet: default.png, detective.png, shocked.png ...
+
+shorts:
+  enabled: true
+  count: 1                    # Shortseja per pitkä video (2 ajoa/pv -> 2 Shortsia/pv, catfish-shorts)
+  publish_times: ["15:00", "19:00"]   # auto_publish: päivän Shortsit näille paikoille järjestyksessä (Helsinki = US-aamu/päivä ET)
+  max_seconds: 50
+  channel_handle: "@catfishgaminghd"
+  cta_text: "Full video on the channel"
+  cta_voice: "Full breakdown is up on the channel right now, go check it."
+  upload: true
+
+brand:                        # kanavabrändi (ks. README: Brändi). enabled: false -> vanha ulkoasu
+  enabled: true
+  name: "Catfish Gaming"
+  tagline: "Play games. Have fun."
+  logo: "${APP_DIR}/assets/brand/logo.png"
+  font: "${APP_DIR}/assets/fonts/Bangers-Regular.ttf"
+  colors: {bg: "#050B1A", panel: "#0A1630", primary: "#1E9BFF", glow: "#4FD0FF", text: "#FFFFFF", outline: "#04112B"}
+  intro:                      # vain pitkä video, välimuisti ${DATA_DIR}/brand_cache
+    enabled: true
+    seconds: 3.0
+    sound: true               # syntetisoitu whoosh + tömähdys, käytössä vain jos musiikkia ei ole
+    music: "${DATA_DIR}/brand_music/Neon nights - Patrick Patrikios.mp3"   # tyhjä = syntetisoitu ääni
+    music_start: 12.6         # biitti pudotus 13,0 s -> osuu ~0,4 s introon
+    music_lufs: -16
+    music_fade: 0.8           # häivytys ensimmäisten puhuttujen sanojen alle
+  outro:                      # loppuruutu viimeiset 12 s, video jatkuu 4 s puheen jälkeen
+    enabled: true
+    seconds: 12
+    tail_seconds: 4
+    music: "${DATA_DIR}/brand_music/Neon nights - Patrick Patrikios.mp3"   # kappaleen viimeiset sekunnit
+    music_end: 159.5          # kappaleen oma loppu osuu videon viimeiseen ruutuun
+    music_lufs: -16           # hiljaisen hännän aikana
+    music_under_lufs: -26     # kun puhe vielä kuuluu
+    crossfade: 2.0            # taustamatto -> loppumusiikki loppuruudun alussa
+  news_panel: true            # pitkä video: uutiskortti = koko ruudun "uutissivu" (rivit, virallinen kuva, lähde)
+  quotes: true                # lainauskortit (sanasta sanaan artikkelista), myös Shortseissa
+  section_titles: true        # pitkä video: osion otsikko 2,4 s osion alussa
+  whoosh: true                # hiljainen whoosh-ääni paneelin ja osion otsikon alussa
+  hits: true                  # itse syntetisoitu matala isku osion otsikkoon (Learn By Leo: hit)
+  risers: true                # nousu ennen viimeistä (lunastus)osiota
+  music_dips: true            # taustamusiikki laskee ennen aiheen vaihtoa, lunastusosiossa tauko
+
+upload:
+  privacy: public             # none | private | unlisted | public. Omistaja 18.11.2026: kaikki suoraan julkisiksi (laatuportti estää huonot). private = tarkistat ja julkaiset itse
+  auto_publish: false         # true = ajastettu julkaisu: private + publishAt (schedule.jobs[].publish_at, shorts.publish_times)
+                              # vaatii Google API -auditoinnin; muuten YouTube lukitsee videon yksityiseksi (OHJE.md)
+  relink_shorts: true         # uuden pitkän videon jälkeen KAIKKIEN Shortsien "Full video" -linkki osoittaa siihen
+  relink_shorts_max: 100      # näin monta uusinta latausta käydään läpi (videos.update per muutettu Short)
+  stuck_minutes: 75           # pitkä video yhä käsittelyssä (kesto 0) näin kauan latauksesta -> ladataan uudelleen,
+                              # Shortsien linkit uuteen, jumiin jäänyt poistetaan (tarkistus tunnin välein)
+  category_id: "20"           # Gaming
+  contains_synthetic_media: false  # omistaja 18.11.2026: ei "Muokattu tai synteettinen sisältö" -merkintää (vain kertojan ääni on synteettinen; kuvaus kertoo sen)
+  set_thumbnail: true
+  max_hashtags: 30            # YouTube ohittaa KAIKKI hashtagit, jos niitä on yli 60
+  upload_timeout_minutes: 60  # yhden tiedoston koko lataus enintään (paloja uusitaan 5xx/yhteysvirheissä, max 10 kertaa)
+  verify_minutes: 30          # latauksen jälkeen odotetaan enintään näin kauan, että YouTube on käsitellyt videon
+  topic_hashtags: [GTA6, GTAVI, GrandTheftAuto, GrandTheftAutoVI, GTA6News, RockstarGames, ViceCity, GTAOnline,
+                   GTA6Leaks, GTA6Trailer, GTA6Gameplay, Leonida, GTA, Rockstar]   # vaihda kun kanava laajenee
+  lead_hashtags:              # 3 tarkinta ensin (näkyvät otsikon yläpuolella); guide.topics[].hashtag korvaa kolmannen
+    long: [GTA6, GTAVI, GTA6News]
+    guide: [GTA6, GTAVI, GTA6Guide]
+  cta_line: "If this helped, hit LIKE and SUBSCRIBE for more GTA 6 news and guides all the way to launch and after."
+  disclaimer: "Not affiliated with Rockstar Games or Take-Two Interactive."
+  music_credit: "Music: \"Pulsar\" by The Grey Room / Density & Time, \"Neon nights\" by Patrick Patrikios (YouTube Audio Library)"
+  hashtags: [GamingNews, GameNews, Gaming, VideoGames, Gamer, Gamers, GamingCommunity, PS5, XboxSeriesX,
+             PlayStation, Xbox, NewGames, GameUpdate, GamingChannel, CatfishGaming]

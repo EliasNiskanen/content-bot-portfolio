@@ -1,0 +1,27 @@
+# Salaisuudet: EI KOSKAAN repoon
+.env
+data/secrets/*
+!data/secrets/.keep
+
+# Python
+.tmp_tests/
+.venv/
+__pycache__/
+*.pyc
+
+# Data: videot, välimuistit, mallit, ladatut kuvat (iso + Rockstarin materiaalia)
+data/*
+!data/clips/
+!data/gta6_footage/
+!data/music/
+!data/secrets/
+data/clips/*
+data/gta6_footage/*
+data/music/*
+!data/clips/.keep
+!data/gta6_footage/.keep
+!data/music/.keep
+
+# Esikatselu- ja testikuvat
+assets/brand/watermark_preview.png
+assets/brand/poses_preview.jpg

@@ -1,0 +1,13 @@
+# Docker-kuvaan vain bot/, assets/, config.yaml ja requirements.txt (data/ tulee volyymina)
+.git
+.gitignore
+.venv
+.claude
+data
+docs
+.env
+.env.*
+**/__pycache__
+**/*.pyc
+*.bat
+*.md
